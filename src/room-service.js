@@ -6,9 +6,26 @@ const localRooms = new Map();
 const ROOM_TTL_SECONDS = 24 * 60 * 60;
 
 function redisConfig() {
-  const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
-  if (url && token) return { url: url.replace(/\/$/, ''), token };
+  const rawUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+  const rawToken = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+  if (rawUrl && rawToken) {
+    let url = String(rawUrl).trim()
+      .replace(/^\s*(?:UPSTASH_REDIS_REST_URL|KV_REST_API_URL)\s*=\s*/i, '')
+      .replace(/^['"`]|['"`]$/g, '')
+      .trim();
+    const markdownTarget = url.match(/\]\(\s*(https?:\/\/[^)\s]+)\s*\)/i);
+    const plainUrl = url.match(/https?:\/\/[^\s"'<>\[\])]+/i);
+    if (markdownTarget) url = markdownTarget[1];
+    else if (plainUrl) url = plainUrl[0];
+    url = url.replace(/\/+$/, '');
+    try {
+      if (new URL(url).protocol !== 'https:') throw new Error('HTTPS required');
+    } catch {
+      throw new Error('Invalid Upstash Redis URL. Set UPSTASH_REDIS_REST_URL to the plain HTTPS endpoint, such as https://your-database.upstash.io.');
+    }
+    const token = String(rawToken).trim().replace(/^['"`]|['"`]$/g, '');
+    return { url, token };
+  }
   if (process.env.VERCEL) throw new Error('Multiplayer storage is not configured. Connect an Upstash Redis database to this Vercel project.');
   return null;
 }
