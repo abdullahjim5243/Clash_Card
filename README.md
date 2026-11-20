@@ -1,4 +1,4 @@
-# Card Game
+# Clash Card
 
 A multiplayer card game for browser play. Players can create a private room, invite friends with a six-character code, or fill the other seats with bots.
 

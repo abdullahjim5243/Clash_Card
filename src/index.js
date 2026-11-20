@@ -12,7 +12,7 @@ const isDirectRun = process.argv[1] && process.argv[1].endsWith('index.js');
 
 if (isDirectRun) {
   console.log('========================================================');
-  console.log('           CUSTOM CARD GAME CORE INITIALIZED            ');
+  console.log('                 CLASH CARD CORE INITIALIZED              ');
   console.log('========================================================');
   console.log('Power Sequence: ' + POWER_SEQUENCE.join(' > '));
   console.log('Player Rule: Minimum 4 players.');

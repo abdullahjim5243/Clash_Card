@@ -63,4 +63,4 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, () => console.log(`Card Game server running at http://localhost:${PORT}`));
+server.listen(PORT, () => console.log(`Clash Card server running at http://localhost:${PORT}`));

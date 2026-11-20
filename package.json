@@ -1,7 +1,7 @@
 {
-  "name": "custom-card-game",
+  "name": "clash-card",
   "version": "1.0.0",
-  "description": "Custom card game with power sequence 2 > A > K > Q > J > 10 > 9 > 8 > 7 > 6 > 5 > 4 > 3 and dynamic deck trimming (52 mod n)",
+  "description": "Clash Card multiplayer game with custom card ranks, rooms, and bot opponents",
   "type": "module",
   "main": "src/index.js",
   "engines": {

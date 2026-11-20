@@ -1,4 +1,4 @@
-# Simple Game Rules
+# Clash Card — Simple Game Rules
 
 ## Goal
 
