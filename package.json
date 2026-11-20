@@ -1,0 +1,20 @@
+{
+  "name": "custom-card-game",
+  "version": "1.0.0",
+  "description": "Custom card game with power sequence 2 > A > K > Q > J > 10 > 9 > 8 > 7 > 6 > 5 > 4 > 3 and dynamic deck trimming (52 mod n)",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node server.js",
+    "cli": "node src/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "card-game",
+    "cards",
+    "power-sequence",
+    "custom-deck"
+  ],
+  "author": "",
+  "license": "ISC"
+}
