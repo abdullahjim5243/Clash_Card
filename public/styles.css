@@ -207,6 +207,21 @@ body {
   border-radius: 6px;
 }
 
+#playerNameInput, #roomCodeInput, #botDifficulty {
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid var(--bg-panel-border);
+  color: #fff;
+  font: 500 0.9rem var(--font-sans);
+  padding: 0.6rem 0.7rem;
+  border-radius: 7px;
+}
+#botDifficulty { width: 130px; }
+.difficulty-row { gap: 0.6rem; }
+.join-room-form { display: grid; gap: 0.5rem; margin-top: 0.85rem; }
+.join-room-form label { font-size: 0.8rem; color: var(--text-muted); }
+.join-room-form #roomCodeInput { text-transform: uppercase; letter-spacing: 0.12em; font-family: var(--font-mono); }
+
 .preset-buttons {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -388,6 +403,28 @@ body {
   flex-direction: column;
 }
 
+.lobby-panel {
+  width: min(760px, 100%);
+  margin: auto;
+  padding: clamp(1.5rem, 5vw, 3rem);
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-radius: 22px;
+  background: radial-gradient(circle at top, #1e3a34, #0f172a 70%);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.38);
+  text-align: center;
+}
+.lobby-panel[hidden], .table-felt[hidden] { display: none; }
+.lobby-panel h2 { margin: 0.9rem 0 0.55rem; font-size: clamp(1.5rem, 4vw, 2.25rem); }
+.lobby-panel > p { color: #cbd5e1; max-width: 530px; margin: 0 auto 1.2rem; line-height: 1.5; }
+.room-code-row { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 0.75rem; margin: 1.2rem 0; }
+.room-code-row > span { color: var(--text-muted); }
+.room-code-row strong { color: var(--accent-gold); font: 800 1.5rem var(--font-mono); letter-spacing: 0.2em; }
+.lobby-player-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.5rem; margin: 1.2rem 0; text-align: left; }
+.lobby-seat { padding: 0.7rem 0.8rem; border: 1px dashed #475569; border-radius: 8px; color: #94a3b8; background: rgba(2, 6, 23, 0.35); }
+.lobby-seat.seat-filled { border-style: solid; border-color: rgba(74, 222, 128, 0.35); color: #e2e8f0; }
+.lobby-panel > .btn { margin: 0.3rem; padding: 0.75rem 1.1rem; }
+.lobby-panel > .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .table-felt {
   background: radial-gradient(circle at center, var(--felt-green) 0%, var(--felt-green-deep) 100%);
   border: 8px solid var(--felt-border);
@@ -478,6 +515,9 @@ body {
 .round-dialog h2 { margin: 0.55rem 0; font-size: clamp(1.6rem, 5vw, 2.2rem); }
 .round-dialog > p { color: #cbd5e1; line-height: 1.55; margin: 0 auto 1.35rem; max-width: 420px; }
 .round-dialog > .btn { padding: 0.85rem 1.3rem; }
+.round-modal-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.6rem; }
+.round-modal-actions .btn { padding: 0.7rem 0.9rem; }
+.round-modal-actions .btn:disabled { opacity: 0.52; cursor: not-allowed; }
 .round-dialog > .btn:disabled { opacity: 0.65; cursor: wait; }
 .exchange-stage {
   display: flex;
@@ -607,6 +647,7 @@ body {
   .card-item { width: 44px; height: 66px; }
   .played-summary { flex-direction: column; gap: 0.5rem; }
   .exchange-stage { padding: 0.75rem 0.4rem; }
+  .lobby-player-list { grid-template-columns: 1fr; }
   .exchange-player { width: 42%; }
   @keyframes winner-card-pass { 0%, 100% { transform: translateX(0); } 45%, 55% { transform: translateX(45px) rotate(8deg) translateY(-8px); } }
   @keyframes loser-card-pass { 0%, 100% { transform: translateX(0); } 45%, 55% { transform: translateX(-45px) rotate(-8deg) translateY(-8px); } }

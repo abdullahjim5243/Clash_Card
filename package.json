@@ -4,6 +4,9 @@
   "description": "Custom card game with power sequence 2 > A > K > Q > J > 10 > 9 > 8 > 7 > 6 > 5 > 4 > 3 and dynamic deck trimming (52 mod n)",
   "type": "module",
   "main": "src/index.js",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node server.js",
     "cli": "node src/index.js",

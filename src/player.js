@@ -4,10 +4,11 @@ export class Player {
    * @param {string} [name]
    * @param {boolean} [isAI=false]
    */
-  constructor(id, name = null, isAI = false) {
+  constructor(id, name = null, isAI = false, aiDifficulty = 'normal') {
     this.id = id;
     this.name = name || `Player ${id}`;
     this.isAI = isAI;
+    this.aiDifficulty = isAI ? aiDifficulty : null;
     this.hand = [];
     this.score = 0;
     this.finishRank = null; // 1 for winner, 2 for 2nd, etc.
@@ -147,6 +148,7 @@ export class Player {
       id: this.id,
       name: this.name,
       isAI: this.isAI,
+      aiDifficulty: this.aiDifficulty,
       handCount: this.hand.length,
       hand: this.hand.map(c => c.toJSON()),
       score: this.score,

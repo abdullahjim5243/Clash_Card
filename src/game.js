@@ -7,7 +7,7 @@ export class Game {
    * @param {number} [playerCount=4] - Number of players (at least 4)
    * @param {string[]} [playerNames=[]] - Custom names
    */
-  constructor(playerCount = 4, playerNames = []) {
+  constructor(playerCount = 4, playerNames = [], options = {}) {
     this.roundNumber = 0;
     this.players = [];
     this.excludedCards = [];
@@ -30,10 +30,10 @@ export class Game {
 
     this.gameLog = [];
 
-    this.initPlayers(playerCount, playerNames);
+    this.initPlayers(playerCount, playerNames, options);
   }
 
-  initPlayers(count, names = []) {
+  initPlayers(count, names = [], options = {}) {
     if (count < MIN_PLAYERS) {
       throw new Error(`Cannot initialize game: minimum ${MIN_PLAYERS} players required. Got: ${count}`);
     }
@@ -42,8 +42,10 @@ export class Game {
     for (let i = 1; i <= count; i++) {
       const name = names[i - 1] || `Player ${i}`;
       // Player 1 is Human by default, others are AI
-      const isAI = i !== 1;
-      this.players.push(new Player(i, name, isAI));
+      const isAI = Array.isArray(options.aiPlayerIds)
+        ? options.aiPlayerIds.includes(i)
+        : options.aiPlayers === false ? false : i !== 1;
+      this.players.push(new Player(i, name, isAI, isAI ? (options.aiDifficulty || 'normal') : null));
     }
   }
 
@@ -410,12 +412,35 @@ export class Game {
    * @returns {Card[]|[]} Cards to play or [] to pass
    */
   getAIMove(player) {
+    const difficulty = player.aiDifficulty || 'normal';
+    if (difficulty === 'easy') {
+      if (this.currentPlay === null) {
+        return player.hand.length ? [player.hand[Math.floor(Math.random() * player.hand.length)]] : [];
+      }
+      if (Math.random() < 0.3) return [];
+      if (this.currentPlay.type === 'SINGLE') {
+        const cards = player.hand.filter(card => card.rankPower >= this.currentPlay.rankPower);
+        return cards.length ? [cards[Math.floor(Math.random() * cards.length)]] : [];
+      }
+      const pairs = player.getPairs().filter(pair => pair[0].rankPower >= this.currentPlay.rankPower);
+      return pairs.length ? pairs[Math.floor(Math.random() * pairs.length)] : [];
+    }
+
+    if (difficulty === 'hard') {
+      const finishPair = player.getPairs().find(pair => pair.length === player.hand.length);
+      if (finishPair) return finishPair;
+      if (player.hand.length === 1) {
+        const onlyCard = player.hand[0];
+        if (!this.currentPlay || (this.currentPlay.type === 'SINGLE' && onlyCard.rankPower >= this.currentPlay.rankPower)) return [onlyCard];
+      }
+    }
+
     if (this.currentPlay === null) {
       // AI has Lead: can play single or pair
       // Strategy: if AI has pairs of low ranks (power <= 8), play lowest pair to dump cards.
       // Otherwise play lowest single card.
       const pairs = player.getPairs();
-      if (pairs.length > 0 && pairs[0][0].rankPower <= 8) {
+      if (pairs.length > 0 && (difficulty === 'hard' || pairs[0][0].rankPower <= 8)) {
         return pairs[0];
       }
       // Play lowest single card
