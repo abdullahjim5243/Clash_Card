@@ -23,7 +23,15 @@ function redisConfig() {
     } catch {
       throw new Error('Invalid Upstash Redis URL. Set UPSTASH_REDIS_REST_URL to the plain HTTPS endpoint, such as https://your-database.upstash.io.');
     }
-    const token = String(rawToken).trim().replace(/^['"`]|['"`]$/g, '');
+    let token = String(rawToken).trim()
+      .replace(/^\s*(?:UPSTASH_REDIS_REST_TOKEN|KV_REST_API_TOKEN)\s*=\s*/i, '')
+      .replace(/^['"`]|['"`]$/g, '')
+      .trim();
+    const tokenMarkdownTarget = token.match(/\]\(\s*([^)\s]+)\s*\)/);
+    if (tokenMarkdownTarget) token = tokenMarkdownTarget[1];
+    else if (/^Bearer\s+/i.test(token)) token = token.replace(/^Bearer\s+/i, '').trim();
+    token = token.replace(/^['"`]|['"`]$/g, '').trim();
+    if (!token) throw new Error('Upstash Redis token is empty. Set UPSTASH_REDIS_REST_TOKEN to the REST token from the same Upstash database.');
     return { url, token };
   }
   if (process.env.VERCEL) throw new Error('Multiplayer storage is not configured. Connect an Upstash Redis database to this Vercel project.');
@@ -39,11 +47,17 @@ async function redisCommand(...command) {
     body: JSON.stringify(command)
   });
   const payload = await response.json();
+  if (/wrongpass|unauthorized|missing auth token/i.test(payload.error || '')) {
+    throw new Error('Upstash Redis rejected its token. Set UPSTASH_REDIS_REST_TOKEN to the REST token from the same database, then restart the server or redeploy.');
+  }
   if (!response.ok || payload.error) throw new Error(payload.error || `Redis request failed (${response.status}).`);
   return payload.result;
 }
 
 function roomKey(code) { return `cardgame:room:${code}`; }
+function roomMissingError() {
+  return new Error('Room code not found on this site. Room codes work only on the same site and deployment where the room was created. Create a new room here or open the same Vercel URL as the host.');
+}
 
 async function readRoom(code) {
   if (!redisConfig()) return localRooms.get(code) || null;
@@ -62,7 +76,7 @@ async function saveRoom(room) {
 async function mutateRoom(code, mutate) {
   if (!redisConfig()) {
     const room = localRooms.get(code);
-    if (!room) throw new Error('Room not found. Check the room code.');
+    if (!room) throw roomMissingError();
     const result = await mutate(room);
     await saveRoom(room);
     return result;
@@ -82,7 +96,7 @@ async function mutateRoom(code, mutate) {
 
   try {
     const room = await readRoom(code);
-    if (!room) throw new Error('Room not found. Check the room code.');
+    if (!room) throw roomMissingError();
     const result = await mutate(room);
     await saveRoom(room);
     return result;
@@ -252,7 +266,7 @@ export async function joinRoom({ roomCode, playerName }) {
 export async function getRoom({ roomCode, token }) {
   const code = cleanCode(roomCode);
   const room = await readRoom(code);
-  if (!room) throw new Error('Room not found. Check the room code.');
+  if (!room) throw roomMissingError();
   const player = playerFor(room, token);
   return roomView(room, player);
 }

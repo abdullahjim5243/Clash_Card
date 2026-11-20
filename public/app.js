@@ -11,6 +11,8 @@ let botTimer = null;
 let shownLogCount = 0;
 let announcedRoundNumber = 0;
 let lastObservedRound = 0;
+let lastPlaySignature = '';
+let animatedPlaySignature = '';
 
 const $ = id => document.getElementById(id);
 const playerCountInput = $('playerCountInput');
@@ -80,6 +82,11 @@ function applyRoomView(view) {
   playerId = view.playerId;
   isHost = view.isHost;
   if (view.phase === 'playing' && view.game) {
+    const playSignature = view.game.currentPlay
+      ? `${view.game.roundNumber}:${view.game.currentPlay.playedById}:${view.game.currentPlay.cards.map(card => card.code).join(',')}`
+      : '';
+    if (playSignature && playSignature !== lastPlaySignature) animatedPlaySignature = playSignature;
+    lastPlaySignature = playSignature;
     gameState = view.game;
     if (gameState.activePlayer?.id !== playerId) selectedCards.clear();
     const round = gameState.roundNumber;
@@ -92,6 +99,8 @@ function applyRoomView(view) {
     renderGame();
     $('lobbyPanel').hidden = true;
     $('tableFelt').hidden = false;
+    $('sidePanel').hidden = false;
+    $('gameLayout').classList.remove('home-layout');
   } else {
     gameState = null;
     selectedCards.clear();
@@ -103,20 +112,18 @@ function applyRoomView(view) {
 function renderLobby(view = null) {
   $('lobbyPanel').hidden = false;
   $('tableFelt').hidden = true;
+  $('sidePanel').hidden = Boolean(!view);
+  $('gameLayout').classList.toggle('home-layout', !view);
+  $('homeScreen').hidden = Boolean(view);
+  $('roomLobby').hidden = !view;
+  if (view) $('gameLogPanel').hidden = false;
   $('roomCodeRow').hidden = !view;
   $('lobbyPlayerList').replaceChildren();
   $('fillBotsBtn').hidden = !view?.isHost || view.phase !== 'lobby' || view.players.length >= view.playerCount;
   $('startGameBtn').hidden = !view?.isHost || view.phase !== 'lobby';
   $('startGameBtn').disabled = !view || view.players.length !== view.playerCount;
 
-  if (!view) {
-    $('lobbyTitle').textContent = 'Create a room or join your friends';
-    $('lobbyStatus').textContent = 'Create a room and share its code, or join a room someone shared with you.';
-    $('roomCodeDisplay').textContent = '';
-    $('startGameBtn').hidden = true;
-    $('fillBotsBtn').hidden = true;
-    return;
-  }
+  if (!view) return;
 
   $('roomCodeDisplay').textContent = view.roomCode;
   if (view.phase === 'lobby') {
@@ -149,7 +156,9 @@ function renderGame() {
   if (!state.currentPlay) table.innerHTML = '<span class="center-placeholder">No cards on the table. The lead can play any single card or pair.</span>';
   else {
     const played = document.createElement('div');
-    played.className = 'played-summary';
+    const signature = `${state.roundNumber}:${state.currentPlay.playedById}:${state.currentPlay.cards.map(card => card.code).join(',')}`;
+    played.className = `played-summary${signature === animatedPlaySignature ? ' play-enter' : ''}`;
+    played.dataset.direction = String((state.currentPlay.playedById - 1) % 4);
     const who = document.createElement('strong');
     who.textContent = `${state.currentPlay.playedByName} played ${state.currentPlay.type === 'PAIR' ? 'a pair' : 'a single'}`;
     played.append(who);
@@ -158,6 +167,7 @@ function renderGame() {
     state.currentPlay.cards.forEach(card => cards.append(makeCard(card)));
     played.append(cards);
     table.append(played);
+    if (signature === animatedPlaySignature) animatedPlaySignature = '';
   }
 
   const ownPlayer = state.players.find(player => player.id === playerId);
@@ -336,6 +346,8 @@ function setSession(payload) {
   shownLogCount = 0;
   announcedRoundNumber = 0;
   lastObservedRound = 0;
+  lastPlaySignature = '';
+  animatedPlaySignature = '';
   selectedCards.clear();
   applyRoomView(payload.view);
   startPolling();
@@ -350,13 +362,14 @@ async function createRoom(withBots = false) {
     const payload = await request('/api/create-room', { body: { playerName: playerNameInput.value, playerCount } });
     setSession(payload);
     if (withBots) {
-      const result = await request('/api/fill-bots', { body: { roomCode, token: sessionToken, difficulty: $('botDifficulty').value } });
+      const difficulty = document.querySelector('input[name="botDifficulty"]:checked')?.value || 'normal';
+      const result = await request('/api/fill-bots', { body: { roomCode, token: sessionToken, difficulty } });
       applyRoomView(result.view);
       await startGame();
     }
   } catch (error) {
-    $('lobbyStatus').textContent = error.message;
-    $('lobbyPanel').hidden = false;
+    if (roomView) $('lobbyStatus').textContent = error.message;
+    else $('homeError').textContent = error.message;
   }
 }
 
@@ -365,8 +378,7 @@ async function joinRoom() {
     const payload = await request('/api/join-room', { body: { roomCode: $('roomCodeInput').value, playerName: playerNameInput.value } });
     setSession(payload);
   } catch (error) {
-    $('lobbyStatus').textContent = error.message;
-    $('lobbyPanel').hidden = false;
+    $('homeError').textContent = error.message;
   }
 }
 
@@ -459,14 +471,38 @@ async function exitGame() {
 
 async function fillBots() {
   try {
-    const payload = await request('/api/fill-bots', { body: { roomCode, token: sessionToken, difficulty: $('botDifficulty').value } });
+    const difficulty = document.querySelector('input[name="botDifficulty"]:checked')?.value || 'normal';
+    const payload = await request('/api/fill-bots', { body: { roomCode, token: sessionToken, difficulty } });
     applyRoomView(payload.view);
   } catch (error) { $('lobbyStatus').textContent = error.message; }
+}
+
+function showMode(mode = 'home') {
+  const home = mode === 'home';
+  $('homeError').textContent = '';
+  $('modeChoices').hidden = !home;
+  $('playerOptions').hidden = home;
+  $('botSettings').hidden = mode !== 'bots';
+  $('multiplayerSettings').hidden = mode !== 'multiplayer';
+  $('joinSettings').hidden = mode !== 'join';
+  $('seatOptions').hidden = mode === 'join';
+  $('seatPresets').hidden = mode === 'join';
+}
+
+function updatePlayerPresets(count = Number.parseInt(playerCountInput.value, 10)) {
+  presetButtons.forEach(button => {
+    button.classList.toggle('active', Number(button.dataset.players) === count);
+  });
 }
 
 $('createRoomBtn').addEventListener('click', () => createRoom(false));
 $('playBotsBtn').addEventListener('click', () => createRoom(true));
 $('joinRoomBtn').addEventListener('click', joinRoom);
+$('botModeBtn').addEventListener('click', () => showMode('bots'));
+$('multiplayerModeBtn').addEventListener('click', () => showMode('multiplayer'));
+$('joinModeBtn').addEventListener('click', () => showMode('join'));
+$('multiplayerJoinBtn').addEventListener('click', () => showMode('join'));
+document.querySelectorAll('.back-mode-btn').forEach(button => button.addEventListener('click', () => showMode('home')));
 $('startGameBtn').addEventListener('click', startGame);
 $('fillBotsBtn').addEventListener('click', fillBots);
 $('copyInviteBtn').addEventListener('click', async () => {
@@ -490,13 +526,28 @@ $('roundModalAction').addEventListener('click', () => {
 $('skipNextBtn').addEventListener('click', skipNextGame);
 $('freshGameBtn').addEventListener('click', startFreshGame);
 $('exitGameBtn').addEventListener('click', exitGame);
-$('incrementPlayersBtn').addEventListener('click', () => { playerCountInput.value = Math.min(52, Number(playerCountInput.value || 4) + 1); });
-$('decrementPlayersBtn').addEventListener('click', () => { playerCountInput.value = Math.max(4, Number(playerCountInput.value || 4) - 1); });
-presetButtons.forEach(button => button.addEventListener('click', () => { playerCountInput.value = button.dataset.players; }));
+$('exitLobbyBtn').addEventListener('click', exitGame);
+$('incrementPlayersBtn').addEventListener('click', () => {
+  playerCountInput.value = Math.min(52, Number(playerCountInput.value || 4) + 1);
+  updatePlayerPresets();
+});
+$('decrementPlayersBtn').addEventListener('click', () => {
+  playerCountInput.value = Math.max(4, Number(playerCountInput.value || 4) - 1);
+  updatePlayerPresets();
+});
+presetButtons.forEach(button => button.addEventListener('click', () => {
+  playerCountInput.value = button.dataset.players;
+  updatePlayerPresets();
+}));
+playerCountInput.addEventListener('input', () => updatePlayerPresets());
 
 renderLobby();
+showMode('home');
 const inviteCode = new URLSearchParams(window.location.search).get('room');
-if (inviteCode) $('roomCodeInput').value = inviteCode.toUpperCase();
+if (inviteCode) {
+  $('roomCodeInput').value = inviteCode.toUpperCase();
+  showMode('join');
+}
 try { playerNameInput.value = localStorage.getItem('card-game-player-name') || playerNameInput.value; } catch { /* Storage may be disabled. */ }
 playerNameInput.addEventListener('change', () => {
   try { localStorage.setItem('card-game-player-name', playerNameInput.value.trim()); } catch { /* Storage may be disabled. */ }

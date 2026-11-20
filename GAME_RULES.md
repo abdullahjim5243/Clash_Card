@@ -27,7 +27,7 @@ The server deals the cards and handles the deck rules automatically.
 - The first player to finish is the winner. The last player with cards is the loser.
 - A popup announces both players.
 - Before the next round, the winner gives their lowest power card to the loser. The loser gives their highest power card to the winner. The popup shows the exchange animation.
-- The previous winner starts the next round.
+- At the start of every round, the player holding the Ace of Spades (A♠) gets the lead. This is checked after the card exchange.
 - The winner popup lets the host exchange cards and continue, skip the next game, or start a fresh deal. Any player can exit; their seat switches to a bot so the room can continue.
 
 ## Starting a game

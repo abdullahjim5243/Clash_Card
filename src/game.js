@@ -112,8 +112,11 @@ export class Game {
       this.executeCardExchange();
     }
 
-    // 5. Determine who starts: Winner of previous game, or Player 1 for first game
-    if (this.lastWinner) {
+    // 5. The Ace of Spades holder starts each round (after any card exchange).
+    const aceOfSpadesHolder = this.players.find(player => player.hasCard('A♠'));
+    if (aceOfSpadesHolder) {
+      this.starterPlayerId = aceOfSpadesHolder.id;
+    } else if (this.lastWinner) {
       this.starterPlayerId = this.lastWinner.id;
     } else {
       this.starterPlayerId = this.players[0].id;
@@ -124,7 +127,8 @@ export class Game {
     this.leadPlayerId = this.players[this.currentTurnIndex].id;
 
     this.state = 'PLAYING';
-    this.log(`${this.players[this.currentTurnIndex].name} starts the game with the Lead.`);
+    const starterReason = aceOfSpadesHolder ? ' by holding the Ace of Spades' : '';
+    this.log(`${this.players[this.currentTurnIndex].name} starts the game with the Lead${starterReason}.`);
 
     return {
       roundNumber: this.roundNumber,

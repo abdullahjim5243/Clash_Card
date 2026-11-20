@@ -17,6 +17,7 @@ Open [http://localhost:3000](http://localhost:3000). Local rooms are stored in t
 The site uses Vercel Functions for its API and Upstash Redis to share room state across requests and players. Vercel does not keep a single server process for all players, so the deployed multiplayer game needs the Redis connection.
 
 1. Connect an Upstash Redis database to the Vercel project. The integration should provide `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` (or `KV_REST_API_URL` and `KV_REST_API_TOKEN`).
+   Use the same database credentials for every Vercel environment where players need to share rooms. Room codes from localhost do not exist in the Vercel database.
 2. Deploy this project with the Vercel CLI:
 
    ```bash

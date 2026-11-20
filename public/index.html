@@ -55,53 +55,11 @@
     </div>
 
     <!-- Main Game Board -->
-    <main class="game-layout">
+    <main class="game-layout home-layout" id="gameLayout">
       <!-- Left / Top Controls Sidebar -->
-      <section class="control-panel card-box">
-        <div class="panel-section">
-          <h3>Multiplayer Room</h3>
-          <div class="control-row">
-            <label for="playerNameInput">Your name:</label>
-            <input type="text" id="playerNameInput" maxlength="20" value="Player" autocomplete="nickname">
-          </div>
-          <div class="control-row">
-            <label for="playerCountInput">Seats (min 4):</label>
-            <div class="counter-control">
-              <button id="decrementPlayersBtn" class="btn btn-secondary btn-icon">&minus;</button>
-              <input type="number" id="playerCountInput" min="4" max="52" value="4">
-              <button id="incrementPlayersBtn" class="btn btn-secondary btn-icon">&#43;</button>
-            </div>
-          </div>
-
-          <div class="preset-buttons">
-            <button class="preset-btn active" data-players="4">4 Players</button>
-            <button class="preset-btn" data-players="5">5 Players</button>
-            <button class="preset-btn" data-players="6">6 Players</button>
-            <button class="preset-btn" data-players="7">7 Players</button>
-            <button class="preset-btn" data-players="8">8 Players</button>
-          </div>
-
-          <button id="createRoomBtn" class="btn btn-primary btn-block">
-            Create room
-          </button>
-          <div class="control-row difficulty-row">
-            <label for="botDifficulty">Bot level:</label>
-            <select id="botDifficulty">
-              <option value="easy">Easy</option>
-              <option value="normal" selected>Normal</option>
-              <option value="hard">Hard</option>
-            </select>
-          </div>
-          <button id="playBotsBtn" class="btn btn-secondary btn-block">Play with bots</button>
-          <div class="join-room-form">
-            <label for="roomCodeInput">Join with a room code</label>
-            <input type="text" id="roomCodeInput" maxlength="6" placeholder="6-character code" autocomplete="off">
-            <button id="joinRoomBtn" class="btn btn-secondary btn-block">Join room</button>
-          </div>
-        </div>
-
+      <section class="control-panel card-box" id="sidePanel" hidden>
         <!-- Activity Log -->
-        <div class="panel-section log-panel">
+        <div class="panel-section log-panel" id="gameLogPanel">
           <h3>Game Log</h3>
           <div class="log-stream" id="logStream">
             <div class="log-item">[System] Ready to play. Choose the number of players and start a game.</div>
@@ -112,17 +70,94 @@
       <!-- Center / Right Game Canvas -->
       <section class="table-area">
         <section class="lobby-panel" id="lobbyPanel">
-          <span class="game-badge">MULTIPLAYER</span>
-          <h2 id="lobbyTitle">Create a room or join your friends</h2>
-          <p id="lobbyStatus">Choose your name, create a room, and share its code. The game starts when every seat is filled.</p>
-          <div class="room-code-row" id="roomCodeRow" hidden>
-            <span>Room code</span>
-            <strong id="roomCodeDisplay"></strong>
-            <button id="copyInviteBtn" class="btn btn-secondary">Copy invite</button>
+          <div class="home-screen" id="homeScreen">
+            <span class="game-badge">CLASH CARD</span>
+            <h2>Who would you like to play?</h2>
+            <p>Choose a quick bot game, create a multiplayer room, or join your friends.</p>
+
+            <div class="mode-cards" id="modeChoices">
+              <button class="mode-card" id="botModeBtn" type="button">
+                <span class="mode-card-icon">♟</span>
+                <strong>Play with bots</strong>
+                <small>Choose a difficulty and start playing</small>
+              </button>
+              <button class="mode-card" id="multiplayerModeBtn" type="button">
+                <span class="mode-card-icon">♧</span>
+                <strong>Multiplayer</strong>
+                <small>Create a room and invite players</small>
+              </button>
+              <button class="mode-card" id="joinModeBtn" type="button">
+                <span class="mode-card-icon">⌂</span>
+                <strong>Join a room</strong>
+                <small>Enter a friend's room code</small>
+              </button>
+            </div>
+
+            <section class="mode-settings" id="playerOptions" hidden>
+              <div class="control-row">
+                <label for="playerNameInput">Your name</label>
+                <input type="text" id="playerNameInput" maxlength="20" value="Player" autocomplete="nickname">
+              </div>
+              <div class="control-row seats-options" id="seatOptions">
+                <label for="playerCountInput">Players (minimum 4)</label>
+                <div class="counter-control">
+                  <button id="decrementPlayersBtn" class="btn btn-secondary btn-icon" type="button">&minus;</button>
+                  <input type="number" id="playerCountInput" min="4" max="52" value="4">
+                  <button id="incrementPlayersBtn" class="btn btn-secondary btn-icon" type="button">&#43;</button>
+                </div>
+              </div>
+              <div class="preset-buttons" id="seatPresets">
+                <button class="preset-btn active" data-players="4" type="button">4 Players</button>
+                <button class="preset-btn" data-players="5" type="button">5 Players</button>
+                <button class="preset-btn" data-players="6" type="button">6 Players</button>
+                <button class="preset-btn" data-players="7" type="button">7 Players</button>
+                <button class="preset-btn" data-players="8" type="button">8 Players</button>
+              </div>
+            </section>
+
+            <section class="mode-settings" id="botSettings" hidden>
+              <h3>Choose bot difficulty</h3>
+              <div class="difficulty-options">
+                <label><input type="radio" name="botDifficulty" value="easy"> Easy</label>
+                <label><input type="radio" name="botDifficulty" value="normal" checked> Normal</label>
+                <label><input type="radio" name="botDifficulty" value="hard"> Hard</label>
+              </div>
+              <button id="playBotsBtn" class="btn btn-primary">Start bot game</button>
+              <button class="btn btn-secondary back-mode-btn" type="button">Back</button>
+            </section>
+
+            <section class="mode-settings" id="multiplayerSettings" hidden>
+              <h3>Create a multiplayer room</h3>
+              <p>Choose the number of seats above. Share the room code when it is created.</p>
+              <button id="createRoomBtn" class="btn btn-primary">Create room</button>
+              <button id="multiplayerJoinBtn" class="btn btn-secondary" type="button">Join an existing room</button>
+              <button class="btn btn-secondary back-mode-btn" type="button">Back</button>
+            </section>
+
+            <section class="mode-settings" id="joinSettings" hidden>
+              <h3>Join a multiplayer room</h3>
+              <label for="roomCodeInput">Room code</label>
+              <input type="text" id="roomCodeInput" maxlength="6" placeholder="Enter 6-character code" autocomplete="off">
+              <button id="joinRoomBtn" class="btn btn-primary">Join room</button>
+              <button class="btn btn-secondary back-mode-btn" type="button">Back</button>
+            </section>
+            <p class="setup-error" id="homeError" role="status" aria-live="polite"></p>
           </div>
-          <div class="lobby-player-list" id="lobbyPlayerList"></div>
-          <button id="fillBotsBtn" class="btn btn-secondary" hidden>Fill empty seats with bots</button>
-          <button id="startGameBtn" class="btn btn-primary" disabled hidden>Start game</button>
+
+          <div class="room-lobby" id="roomLobby" hidden>
+            <span class="game-badge">MULTIPLAYER ROOM</span>
+            <h2 id="lobbyTitle">Room</h2>
+            <p id="lobbyStatus"></p>
+            <div class="room-code-row" id="roomCodeRow" hidden>
+              <span>Room code</span>
+              <strong id="roomCodeDisplay"></strong>
+              <button id="copyInviteBtn" class="btn btn-secondary">Copy invite</button>
+            </div>
+            <div class="lobby-player-list" id="lobbyPlayerList"></div>
+            <button id="fillBotsBtn" class="btn btn-secondary" hidden>Fill empty seats with bots</button>
+            <button id="startGameBtn" class="btn btn-primary" disabled hidden>Start game</button>
+            <button id="exitLobbyBtn" class="btn btn-secondary">Exit room</button>
+          </div>
         </section>
 
         <div class="table-felt" id="tableFelt" hidden>
