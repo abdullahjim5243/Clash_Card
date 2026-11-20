@@ -2,16 +2,19 @@ export class Player {
   /**
    * @param {string|number} id 
    * @param {string} [name]
+   * @param {boolean} [isAI=false]
    */
-  constructor(id, name = null) {
+  constructor(id, name = null, isAI = false) {
     this.id = id;
     this.name = name || `Player ${id}`;
+    this.isAI = isAI;
     this.hand = [];
     this.score = 0;
+    this.finishRank = null; // 1 for winner, 2 for 2nd, etc.
   }
 
   /**
-   * Adds cards to the player's hand.
+   * Adds cards to the player's hand and auto-sorts by power (2 > A > ... > 3).
    * @param {Card|Card[]} cards 
    */
   receiveCards(cards) {
@@ -33,6 +36,34 @@ export class Player {
       return order === 'desc' ? -cmp : cmp;
     });
     return this.hand;
+  }
+
+  /**
+   * Checks if player has finished their hand.
+   * @returns {boolean}
+   */
+  isFinished() {
+    return this.hand.length === 0;
+  }
+
+  /**
+   * Returns player's highest power card.
+   * @returns {Card|null}
+   */
+  getHighestCard() {
+    if (this.hand.length === 0) return null;
+    // Hand sorted desc: index 0 is highest power
+    return this.hand[0];
+  }
+
+  /**
+   * Returns player's lowest power card.
+   * @returns {Card|null}
+   */
+  getLowestCard() {
+    if (this.hand.length === 0) return null;
+    // Hand sorted desc: last item is lowest power
+    return this.hand[this.hand.length - 1];
   }
 
   /**
@@ -60,17 +91,67 @@ export class Player {
     return played;
   }
 
+  /**
+   * Removes multiple cards from hand.
+   * @param {Card[]|string[]} cards 
+   * @returns {Card[]}
+   */
+  playCards(cards) {
+    const played = [];
+    for (const c of cards) {
+      const card = this.playCard(c);
+      if (card) played.push(card);
+    }
+    return played;
+  }
+
+  /**
+   * Groups hand by rank to find pairs.
+   * @returns {Map<string, Card[]>}
+   */
+  getRankGroups() {
+    const groups = new Map();
+    for (const card of this.hand) {
+      if (!groups.has(card.rank)) {
+        groups.set(card.rank, []);
+      }
+      groups.get(card.rank).push(card);
+    }
+    return groups;
+  }
+
+  /**
+   * Returns all available pairs in hand sorted by power ascending.
+   * @returns {Card[][]}
+   */
+  getPairs() {
+    const groups = this.getRankGroups();
+    const pairs = [];
+    for (const [rank, cards] of groups.entries()) {
+      if (cards.length >= 2) {
+        // Sort pairs by rankPower ascending
+        pairs.push([cards[0], cards[1]]);
+      }
+    }
+    pairs.sort((a, b) => a[0].rankPower - b[0].rankPower);
+    return pairs;
+  }
+
   clearHand() {
     this.hand = [];
+    this.finishRank = null;
   }
 
   toJSON() {
     return {
       id: this.id,
       name: this.name,
+      isAI: this.isAI,
       handCount: this.hand.length,
       hand: this.hand.map(c => c.toJSON()),
-      score: this.score
+      score: this.score,
+      finishRank: this.finishRank,
+      isFinished: this.isFinished()
     };
   }
 }

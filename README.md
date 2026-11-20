@@ -2,9 +2,11 @@
 
 An extensible card game engine built based on custom ranking and dynamic deck trimming rules.
 
+For player instructions, see [GAME_RULES.md](GAME_RULES.md).
+
 ---
 
-## 🃏 Implemented Core Rules
+## 🃏 Implemented Rules
 
 ### 1. Power Sequence
 The card hierarchy from strongest to weakest:
@@ -50,13 +52,11 @@ npm run cli
 Displays terminal simulation of dealing with 4, 5, 6, 7, and 8 players.
 
 ### 3. Open Interactive Web UI
-You can open `public/index.html` directly in any web browser (Chrome, Edge, Firefox):
-- Double click [index.html](file:///c:/Users/HP/OneDrive/Desktop/card%20game/public/index.html)
-- Or run local server:
+Start the backend server, which owns the deck, dealing calculations, rules, and AI turns:
   ```bash
   npm start
   ```
-  and visit `http://localhost:3000`.
+  Then visit `http://localhost:3000`. The frontend sends actions to the backend API and renders the state it returns. Open the site through the server rather than opening `public/index.html` directly.
 
 ---
 
@@ -81,5 +81,12 @@ card game/
 
 ---
 
-## 🔜 Ready for Rest of Instructions
-The game engine is structured modularly. As soon as you provide the rest of the rules (turn order, trick-taking or shedding mechanics, card combinations, bidding, scoring, or winning conditions), we can wire them directly into `src/game.js` and the Web UI!
+## Playing a round
+
+- Player 1 is the human seat; the remaining seats are computer players.
+- The lead can start with one card or a pair of equal rank. Each response must match the play type and rank at least as high as the current play. Players may pass while responding.
+- When every other active player passes, the last player to play takes the lead and may start a new single or pair.
+- The first player to empty their hand wins; the last player still holding cards loses. At the next deal, they exchange cards: the winner gives their lowest card and receives the loser's highest card.
+- The previous round's winner starts the next round. The New Game button resets the player count and starts fresh.
+
+These are the initial playable rules. The game can be extended as you send the remaining instructions.

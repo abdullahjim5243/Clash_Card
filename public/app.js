@@ -1,469 +1,276 @@
-/**
- * Custom Card Game Simulator - Web Application Controller
- * Standalone browser build (runs both via local server and by opening index.html directly)
- */
+let gameId = null;
+let gameState = null;
+let selectedCards = new Set();
+let aiTimer = null;
+let shownLogCount = 0;
+let announcedRoundNumber = 0;
 
-// ==========================================
-// 1. CONSTANTS & GAME CONFIGURATION
-// ==========================================
-const POWER_SEQUENCE = ['2', 'A', 'K', 'Q', 'J', '10', '9', '8', '7', '6', '5', '4', '3'];
+const $ = id => document.getElementById(id);
+const playerCountInput = $('playerCountInput');
+const presetButtons = [...document.querySelectorAll('.preset-btn')];
 
-const RANK_POWER = {
-  '3': 1,
-  '4': 2,
-  '5': 3,
-  '6': 4,
-  '7': 5,
-  '8': 6,
-  '9': 7,
-  '10': 8,
-  'J': 9,
-  'Q': 10,
-  'K': 11,
-  'A': 12,
-  '2': 13
-};
+async function apiRequest(path, body = {}) {
+  const response = await fetch(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || 'The game server could not complete that action.');
+  if (payload.gameId) gameId = payload.gameId;
+  if (payload.state) gameState = payload.state;
+  return payload;
+}
 
-const SUITS = [
-  { symbol: '♦', name: 'Diamonds', color: 'red', power: 1 },
-  { symbol: '♣', name: 'Clubs', color: 'black', power: 2 },
-  { symbol: '♥', name: 'Hearts', color: 'red', power: 3 },
-  { symbol: '♠', name: 'Spades', color: 'black', power: 4 }
-];
+function makeCard(card, { selectable = false, selected = false, playable = false, unplayable = false } = {}) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = `card-item ${card.color}${selected ? ' selected' : ''}${playable ? ' playable-card' : ''}${unplayable ? ' unplayable-card' : ''}`;
+  el.setAttribute('aria-label', `${card.rank} of ${card.suitName}`);
+  if (unplayable) el.title = 'This card cannot beat the current play';
+  else if (playable) el.title = 'Playable card';
+  el.innerHTML = `<span class="card-top"><span class="card-rank">${card.rank}</span><span class="card-suit-small">${card.suit}</span></span><span class="card-center-suit">${card.suit}</span>`;
+  if (!selectable) el.disabled = true;
+  else el.addEventListener('click', () => toggleCard(card.code));
+  return el;
+}
 
-const SUIT_SYMBOLS = ['♦', '♣', '♥', '♠'];
-const MIN_PLAYERS = 4;
-const STANDARD_DECK_SIZE = 52;
+function toggleCard(code) {
+  if (selectedCards.has(code)) selectedCards.delete(code);
+  else if (selectedCards.size < 2) selectedCards.add(code);
+  else selectedCards = new Set([code]);
+  render();
+}
 
-// ==========================================
-// 2. CARD MODEL
-// ==========================================
-class Card {
-  constructor(rank, suitSymbol) {
-    if (RANK_POWER[rank] === undefined) {
-      throw new Error(`Invalid card rank: ${rank}`);
-    }
-    const suitObj = SUITS.find(s => s.symbol === suitSymbol);
-    if (!suitObj) {
-      throw new Error(`Invalid card suit: ${suitSymbol}`);
-    }
+function addLog(message) {
+  const stream = $('logStream');
+  const entry = document.createElement('div');
+  entry.className = 'log-item';
+  entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+  stream.append(entry);
+  stream.scrollTop = stream.scrollHeight;
+}
 
-    this.rank = rank;
-    this.suit = suitObj.symbol;
-    this.suitName = suitObj.name;
-    this.suitColor = suitObj.color;
-    this.suitPower = suitObj.power;
-    this.rankPower = RANK_POWER[rank];
-  }
-
-  compareRank(other) {
-    return this.rankPower - other.rankPower;
-  }
-
-  compareTo(other) {
-    if (this.rankPower !== other.rankPower) {
-      return this.rankPower - other.rankPower;
-    }
-    return this.suitPower - other.suitPower;
-  }
-
-  toString() {
-    return `${this.rank}${this.suit}`;
-  }
-
-  toJSON() {
-    return {
-      rank: this.rank,
-      suit: this.suit,
-      suitName: this.suitName,
-      color: this.suitColor,
-      rankPower: this.rankPower,
-      suitPower: this.suitPower,
-      code: this.toString()
-    };
+function syncLogs() {
+  const logs = gameState?.gameLog || [];
+  for (; shownLogCount < logs.length;) {
+    const message = logs[shownLogCount++].message;
+    if (!message.includes('52 mod') && !message.includes('Excluded lowest cards')) addLog(message);
   }
 }
 
-// ==========================================
-// 3. DECK MODEL
-// ==========================================
-class Deck {
-  constructor(cards = null) {
-    this.cards = cards ? [...cards] : Deck.createStandardDeck();
-    this.excludedCards = [];
+function render() {
+  if (!gameState) return;
+  const state = gameState;
+  const table = $('tableCenterCards');
+  table.replaceChildren();
+  if (!state.currentPlay) table.innerHTML = '<span class="center-placeholder">No cards on the table. The lead can play any single card or pair.</span>';
+  else {
+    const played = document.createElement('div');
+    played.className = 'played-summary';
+    const who = document.createElement('strong');
+    who.textContent = `${state.currentPlay.playedByName} played ${state.currentPlay.type === 'PAIR' ? 'a pair' : 'a single'}`;
+    played.append(who);
+    const cards = document.createElement('div');
+    cards.className = 'played-cards';
+    state.currentPlay.cards.forEach(card => cards.append(makeCard(card)));
+    played.append(cards);
+    table.append(played);
   }
 
-  static createStandardDeck() {
-    const cards = [];
-    for (const rank of POWER_SEQUENCE) {
-      for (const suit of SUIT_SYMBOLS) {
-        cards.push(new Card(rank, suit));
-      }
-    }
-    return cards;
-  }
+  const human = state.players[0];
+  const active = state.activePlayer;
+  $('tableHeading').textContent = state.state === 'ROUND_OVER' ? 'Round complete' : `Round ${state.roundNumber}`;
+  $('tableStatus').textContent = state.state === 'ROUND_OVER'
+    ? `${state.lastWinner?.name || 'No winner'} finished first · ${state.lastLoser?.name || 'No loser'} finished last`
+    : active?.id === human.id
+      ? (state.currentPlay ? `${active.name}, beat the ${state.currentPlay.type.toLowerCase()} or pass.` : `${active.name} has the lead. Play a single or pair.`)
+      : `${active?.name} is thinking…`;
 
-  static calculateDealingSpecs(playerCount) {
-    if (playerCount < MIN_PLAYERS) {
-      throw new Error(`Minimum player count is ${MIN_PLAYERS}. Received: ${playerCount}`);
-    }
-    const remainder = STANDARD_DECK_SIZE % playerCount;
-    const playableCount = STANDARD_DECK_SIZE - remainder;
-    const cardsPerPlayer = Math.floor(playableCount / playerCount);
-
-    return {
-      totalCards: STANDARD_DECK_SIZE,
-      playerCount,
-      remainder,
-      playableCount,
-      cardsPerPlayer
-    };
-  }
-
-  shuffle(rng = Math.random) {
-    for (let i = this.cards.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      [this.cards[i], this.cards[j]] = [this.cards[j], this.cards[i]];
-    }
-    return this;
-  }
-
-  prepareForPlayers(playerCount) {
-    const specs = Deck.calculateDealingSpecs(playerCount);
-
-    if (specs.remainder === 0) {
-      this.excludedCards = [];
-      return {
-        playableCards: this.cards,
-        excludedCards: [],
-        specs
-      };
-    }
-
-    // Sort full standard deck ascending by power to pick the exact lowest cards
-    const sortedAll = Deck.createStandardDeck().sort((a, b) => a.compareTo(b));
-    const cardsToExclude = sortedAll.slice(0, specs.remainder);
-    const excludeKeys = new Set(cardsToExclude.map(c => c.toString()));
-
-    this.excludedCards = [];
-    const remaining = [];
-
-    for (const card of this.cards) {
-      if (excludeKeys.has(card.toString())) {
-        this.excludedCards.push(card);
-      } else {
-        remaining.push(card);
-      }
-    }
-
-    this.excludedCards.sort((a, b) => a.compareTo(b));
-    this.cards = remaining;
-
-    return {
-      playableCards: this.cards,
-      excludedCards: this.excludedCards,
-      specs
-    };
-  }
-
-  deal(playerCount) {
-    const { specs } = this.prepareForPlayers(playerCount);
-    const hands = Array.from({ length: playerCount }, () => []);
-
-    let cardIdx = 0;
-    for (let round = 0; round < specs.cardsPerPlayer; round++) {
-      for (let p = 0; p < playerCount; p++) {
-        hands[p].push(this.cards[cardIdx++]);
-      }
-    }
-
-    return hands;
-  }
-}
-
-// ==========================================
-// 4. PLAYER MODEL
-// ==========================================
-class Player {
-  constructor(id, name = null) {
-    this.id = id;
-    this.name = name || `Player ${id}`;
-    this.hand = [];
-    this.score = 0;
-  }
-
-  receiveCards(cards) {
-    if (Array.isArray(cards)) {
-      this.hand.push(...cards);
-    } else if (cards) {
-      this.hand.push(cards);
-    }
-    this.sortHand();
-  }
-
-  sortHand(order = 'desc') {
-    this.hand.sort((a, b) => {
-      const cmp = a.compareTo(b);
-      return order === 'desc' ? -cmp : cmp;
-    });
-    return this.hand;
-  }
-
-  clearHand() {
-    this.hand = [];
-  }
-
-  toJSON() {
-    return {
-      id: this.id,
-      name: this.name,
-      handCount: this.hand.length,
-      hand: this.hand.map(c => c.toJSON()),
-      score: this.score
-    };
-  }
-}
-
-// ==========================================
-// 5. GAME ENGINE
-// ==========================================
-class Game {
-  constructor(playerCount = 4, playerNames = []) {
-    this.deck = new Deck();
-    this.players = [];
-    this.excludedCards = [];
-    this.dealingSpecs = null;
-    this.state = 'SETUP';
-    this.currentTurnIndex = 0;
-    this.tableCards = [];
-    this.gameLog = [];
-
-    this.initPlayers(playerCount, playerNames);
-  }
-
-  initPlayers(count, names = []) {
-    if (count < MIN_PLAYERS) {
-      throw new Error(`Minimum ${MIN_PLAYERS} players required. Got: ${count}`);
-    }
-    this.players = [];
-    for (let i = 1; i <= count; i++) {
-      const name = names[i - 1] || `Player ${i}`;
-      this.players.push(new Player(i, name));
-    }
-  }
-
-  startRound(rng = Math.random) {
-    this.deck = new Deck();
-    this.deck.shuffle(rng);
-
-    const { excludedCards, specs } = this.deck.prepareForPlayers(this.players.length);
-    this.excludedCards = excludedCards;
-    this.dealingSpecs = specs;
-
-    for (const player of this.players) {
-      player.clearHand();
-    }
-
-    const hands = this.deck.deal(this.players.length);
-    for (let i = 0; i < this.players.length; i++) {
-      this.players[i].receiveCards(hands[i]);
-    }
-
-    this.state = 'DEALT';
-    this.currentTurnIndex = 0;
-    this.tableCards = [];
-
-    return {
-      specs: this.dealingSpecs,
-      excludedCards: this.excludedCards,
-      players: this.players
-    };
-  }
-
-  getState() {
-    return {
-      state: this.state,
-      playerCount: this.players.length,
-      dealingSpecs: this.dealingSpecs,
-      excludedCards: this.excludedCards.map(c => c.toJSON()),
-      players: this.players.map(p => p.toJSON()),
-      currentTurnIndex: this.currentTurnIndex,
-      activePlayer: this.players[this.currentTurnIndex]?.name || null,
-      tableCards: this.tableCards.map(c => c.toJSON()),
-      gameLog: this.gameLog
-    };
-  }
-}
-
-// ==========================================
-// 6. UI CONTROLLER
-// ==========================================
-let currentGame = null;
-let playerCount = 4;
-
-const playerCountInput = document.getElementById('playerCountInput');
-const incrementBtn = document.getElementById('incrementPlayersBtn');
-const decrementBtn = document.getElementById('decrementPlayersBtn');
-const presetButtons = document.querySelectorAll('.preset-btn');
-const dealBtn = document.getElementById('dealBtn');
-
-const statFormula = document.getElementById('statFormula');
-const statExcludedCount = document.getElementById('statExcludedCount');
-const statCardsPerPlayer = document.getElementById('statCardsPerPlayer');
-const excludedCardsContainer = document.getElementById('excludedCardsContainer');
-const excludedBadge = document.getElementById('excludedBadge');
-const playersContainer = document.getElementById('playersContainer');
-const logStream = document.getElementById('logStream');
-const tableStatus = document.getElementById('tableStatus');
-
-function createCardElement(card, isExcluded = false) {
-  const cardDiv = document.createElement('div');
-  cardDiv.className = `card-item ${card.color} ${isExcluded ? 'excluded-card' : ''}`;
-  cardDiv.title = `${card.rank} of ${card.suitName} (Power Rank: ${card.rankPower})`;
-
-  cardDiv.innerHTML = `
-    <div class="card-top">
-      <span class="card-rank">${card.rank}</span>
-      <span class="card-suit-small">${card.suit}</span>
-    </div>
-    <div class="card-center-suit">${card.suit}</div>
-    <div class="card-power-pill">#${card.rankPower}</div>
-  `;
-
-  if (!isExcluded) {
-    cardDiv.addEventListener('click', () => {
-      addLog(`Selected ${card.code} from hand (Power: #${card.rankPower}). Ready for upcoming gameplay rules!`);
-    });
-  }
-
-  return cardDiv;
-}
-
-function addLog(msg) {
-  const now = new Date().toLocaleTimeString();
-  const item = document.createElement('div');
-  item.className = 'log-item';
-  item.textContent = `[${now}] ${msg}`;
-  logStream.appendChild(item);
-  logStream.scrollTop = logStream.scrollHeight;
-}
-
-function renderGame() {
-  if (!currentGame) return;
-
-  const state = currentGame.getState();
-  const specs = state.dealingSpecs;
-
-  // Formula & Specs
-  statFormula.textContent = `52 % ${specs.playerCount} = ${specs.remainder}`;
-  statExcludedCount.textContent = `${specs.remainder} card${specs.remainder === 1 ? '' : 's'}`;
-  statCardsPerPlayer.textContent = `${specs.cardsPerPlayer} cards`;
-
-  // Excluded Tray
-  excludedCardsContainer.innerHTML = '';
-  if (state.excludedCards.length === 0) {
-    excludedBadge.textContent = '0 Excluded';
-    excludedBadge.style.background = '#475569';
-    excludedCardsContainer.innerHTML = '<span class="empty-state">No cards excluded (deck splits evenly).</span>';
-  } else {
-    excludedBadge.textContent = `${state.excludedCards.length} Excluded (Lowest)`;
-    excludedBadge.style.background = '#ef4444';
-    state.excludedCards.forEach(c => {
-      excludedCardsContainer.appendChild(createCardElement(c, true));
-    });
-  }
-
-  // Players Hand
-  playersContainer.innerHTML = '';
-  state.players.forEach(player => {
-    const board = document.createElement('div');
-    board.className = 'player-board';
-
+  const players = $('playersContainer');
+  players.replaceChildren();
+  state.players.forEach((player, index) => {
+    const board = document.createElement('section');
+    board.className = `player-board${player.id === active?.id && state.state === 'PLAYING' ? ' player-active' : ''}${player.isFinished ? ' player-finished' : ''}`;
     const header = document.createElement('div');
     header.className = 'player-board-header';
-    header.innerHTML = `
-      <div class="player-title">
-        <span class="player-name">${player.name}</span>
-      </div>
-      <span class="card-count-badge">${player.handCount} Cards</span>
-    `;
-
-    const handDiv = document.createElement('div');
-    handDiv.className = 'player-hand';
-    player.hand.forEach(card => {
-      handDiv.appendChild(createCardElement(card));
-    });
-
-    board.appendChild(header);
-    board.appendChild(handDiv);
-    playersContainer.appendChild(board);
-  });
-
-  tableStatus.textContent = `Active round: ${specs.playerCount} players, ${specs.cardsPerPlayer} cards each. Power hierarchy: 2 > A > K > ... > 3.`;
-}
-
-function dealNewRound() {
-  playerCount = Math.max(4, parseInt(playerCountInput.value, 10) || 4);
-  playerCountInput.value = playerCount;
-
-  currentGame = new Game(playerCount);
-  currentGame.startRound();
-
-  const specs = currentGame.dealingSpecs;
-  if (specs.remainder > 0) {
-    const excludedList = currentGame.excludedCards.map(c => c.toString()).join(' ');
-    addLog(`Dealt to ${playerCount} players. 52 mod ${playerCount} = ${specs.remainder}. Excluded lowest: [${excludedList}].`);
-  } else {
-    addLog(`Dealt to ${playerCount} players. 52 mod ${playerCount} = 0. All 52 cards dealt (${specs.cardsPerPlayer} each).`);
-  }
-
-  renderGame();
-}
-
-function updatePresetButtons(count) {
-  presetButtons.forEach(btn => {
-    if (parseInt(btn.getAttribute('data-players'), 10) === count) {
-      btn.classList.add('active');
+    const name = document.createElement('span');
+    name.className = 'player-name';
+    name.textContent = `${player.name}${player.id === state.leadPlayerId ? ' · LEAD' : ''}${player.isFinished ? ` · #${player.finishRank}` : ''}`;
+    const count = document.createElement('span');
+    count.className = 'card-count-badge';
+    count.textContent = `${player.handCount} card${player.handCount === 1 ? '' : 's'}`;
+    header.append(name, count);
+    board.append(header);
+    if (index === 0) {
+      const hand = document.createElement('div');
+      hand.className = 'player-hand human-hand';
+      const humanTurn = state.state === 'PLAYING' && active?.id === human.id;
+      const playableCodes = new Set(state.playableCardCodes || []);
+      player.hand.forEach(card => {
+        const playable = humanTurn && playableCodes.has(card.code);
+        hand.append(makeCard(card, {
+          selectable: playable,
+          selected: selectedCards.has(card.code),
+          playable,
+          unplayable: humanTurn && !playable
+        }));
+      });
+      board.append(hand);
     } else {
-      btn.classList.remove('active');
+      const back = document.createElement('div');
+      back.className = 'opponent-hand';
+      back.textContent = player.isFinished ? 'Finished' : '🂠 '.repeat(Math.min(player.handCount, 12));
+      board.append(back);
     }
+    players.append(board);
   });
+
+  const isHumanTurn = state.state === 'PLAYING' && active?.id === human.id;
+  $('playBtn').disabled = !isHumanTurn || selectedCards.size === 0;
+  $('passBtn').disabled = !isHumanTurn || !state.currentPlay;
+  $('nextRoundBtn').hidden = state.state !== 'ROUND_OVER';
+  const playableCount = (state.playableCardCodes || []).length;
+  $('selectionHint').textContent = selectedCards.size > 0
+    ? `${selectedCards.size} selected`
+    : isHumanTurn && state.currentPlay && playableCount === 0
+      ? 'No playable cards. Pass your turn.'
+      : isHumanTurn && state.currentPlay
+        ? 'Highlighted cards can beat the play. You may also pass.'
+        : isHumanTurn
+          ? 'Highlighted cards are playable. Select one or a same-rank pair.'
+          : 'Green cards show which plays are available on your turn.';
+  syncLogs();
+  if (state.state === 'ROUND_OVER' && announcedRoundNumber !== state.roundNumber) showRoundResults(state);
+  if (state.state === 'PLAYING' && active?.isAI) scheduleAI();
 }
 
-// Event Listeners
-dealBtn.addEventListener('click', dealNewRound);
+function showRoundResults(state) {
+  announcedRoundNumber = state.roundNumber;
+  $('roundModalKicker').textContent = `ROUND ${state.roundNumber} RESULTS`;
+  $('roundModalTitle').textContent = 'The round is over';
+  $('roundModalMessage').textContent = `${state.lastWinner?.name || 'No winner'} finished first and wins! ${state.lastLoser?.name || 'No loser'} finished last.`;
+  $('exchangeStage').hidden = true;
+  $('roundModalAction').textContent = 'Exchange cards & start next round';
+  $('roundModal').hidden = false;
+}
 
-incrementBtn.addEventListener('click', () => {
-  playerCountInput.value = (parseInt(playerCountInput.value, 10) || 4) + 1;
-  updatePresetButtons(parseInt(playerCountInput.value, 10));
-  dealNewRound();
-});
+function beginNextRoundExchange() {
+  advanceRound();
+}
 
-decrementBtn.addEventListener('click', () => {
-  const current = parseInt(playerCountInput.value, 10) || 4;
-  if (current > 4) {
-    playerCountInput.value = current - 1;
-    updatePresetButtons(parseInt(playerCountInput.value, 10));
-    dealNewRound();
+async function advanceRound() {
+  $('roundModalAction').disabled = true;
+  try {
+    await apiRequest('/api/next-round', { gameId });
+  } catch (error) {
+    addLog(error.message);
+    $('roundModalAction').disabled = false;
+    return;
   }
-});
+  const exchange = gameState.lastCardExchange;
+  const stage = $('exchangeStage');
+  stage.replaceChildren();
+  stage.hidden = false;
+  $('roundModalKicker').textContent = 'CARD EXCHANGE';
+  $('roundModalTitle').textContent = 'Pass one card each way';
+  $('roundModalMessage').textContent = 'The winner gives their lowest power card. The loser gives their highest power card.';
 
-playerCountInput.addEventListener('change', () => {
-  let val = parseInt(playerCountInput.value, 10);
-  if (isNaN(val) || val < 4) val = 4;
-  playerCountInput.value = val;
-  updatePresetButtons(val);
-  dealNewRound();
-});
+  const winnerSide = document.createElement('div');
+  winnerSide.className = 'exchange-player winner-side';
+  const winnerName = document.createElement('strong');
+  winnerName.textContent = exchange?.winnerName || 'Winner';
+  const winnerCard = exchange?.winnerGave;
+  const winnerCaption = document.createElement('span');
+  winnerCaption.textContent = 'Lowest card →';
+  winnerSide.append(winnerName, winnerCaption);
+  if (winnerCard) winnerSide.append(makeCard(winnerCard));
 
-presetButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const count = parseInt(btn.getAttribute('data-players'), 10);
-    playerCountInput.value = count;
-    updatePresetButtons(count);
-    dealNewRound();
-  });
-});
+  const exchangeArrow = document.createElement('span');
+  exchangeArrow.className = 'exchange-arrow';
+  exchangeArrow.setAttribute('aria-hidden', 'true');
+  exchangeArrow.textContent = '⇄';
 
-// Initial deal on load
-dealNewRound();
+  const loserSide = document.createElement('div');
+  loserSide.className = 'exchange-player loser-side';
+  const loserName = document.createElement('strong');
+  loserName.textContent = exchange?.loserName || 'Loser';
+  const loserCard = exchange?.loserGave;
+  const loserCaption = document.createElement('span');
+  loserCaption.textContent = '← Highest card';
+  loserSide.append(loserName, loserCaption);
+  if (loserCard) loserSide.append(makeCard(loserCard));
+  stage.append(winnerSide, exchangeArrow, loserSide);
+  stage.classList.remove('exchange-animate');
+  void stage.offsetWidth;
+  stage.classList.add('exchange-animate');
+  render();
+  setTimeout(() => {
+    $('roundModalTitle').textContent = 'Card exchange complete';
+    $('roundModalMessage').textContent = 'The winner gave their lowest card and received the loser’s highest. The next round is ready.';
+    $('roundModalAction').textContent = 'Continue';
+    $('roundModalAction').disabled = false;
+    $('roundModalAction').dataset.phase = 'complete';
+  }, 1900);
+}
+
+function scheduleAI() {
+  if (aiTimer || !$('roundModal').hidden) return;
+  aiTimer = setTimeout(() => {
+    aiTimer = null;
+    apiRequest('/api/ai-step', { gameId })
+      .then(() => { selectedCards.clear(); render(); })
+      .catch(error => addLog(error.message));
+  }, 650);
+}
+
+async function submitHumanMove(pass = false) {
+  try {
+    await apiRequest('/api/action', { gameId, pass, cards: [...selectedCards] });
+    selectedCards.clear();
+    render();
+  } catch (error) {
+    addLog(error.message);
+  }
+}
+
+async function dealNewGame() {
+  clearTimeout(aiTimer);
+  aiTimer = null;
+  const count = Number.parseInt(playerCountInput.value, 10) || 4;
+  presetButtons.forEach(button => button.classList.toggle('active', Number(button.dataset.players) === count));
+  selectedCards.clear();
+  shownLogCount = 0;
+  $('logStream').replaceChildren();
+  try {
+    await apiRequest('/api/new', { playerCount: count });
+    announcedRoundNumber = 0;
+    $('roundModal').hidden = true;
+    render();
+  } catch (error) {
+    addLog(error.message);
+  }
+}
+
+$('dealBtn').addEventListener('click', dealNewGame);
+$('playBtn').addEventListener('click', () => submitHumanMove());
+$('passBtn').addEventListener('click', () => submitHumanMove(true));
+$('nextRoundBtn').addEventListener('click', () => {
+  $('roundModal').hidden = false;
+});
+$('roundModalAction').addEventListener('click', () => {
+  const action = $('roundModalAction');
+  if (action.dataset.phase === 'complete') {
+    action.dataset.phase = '';
+    $('roundModal').hidden = true;
+    selectedCards.clear();
+    render();
+    return;
+  }
+  beginNextRoundExchange();
+});
+$('incrementPlayersBtn').addEventListener('click', () => { playerCountInput.value = Math.min(52, Number(playerCountInput.value || 4) + 1); dealNewGame(); });
+$('decrementPlayersBtn').addEventListener('click', () => { playerCountInput.value = Math.max(4, Number(playerCountInput.value || 4) - 1); dealNewGame(); });
+playerCountInput.addEventListener('change', dealNewGame);
+presetButtons.forEach(button => button.addEventListener('click', () => { playerCountInput.value = button.dataset.players; dealNewGame(); }));
+dealNewGame();

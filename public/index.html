@@ -64,7 +64,7 @@
             <label for="playerCountInput">Players (min 4):</label>
             <div class="counter-control">
               <button id="decrementPlayersBtn" class="btn btn-secondary btn-icon">&minus;</button>
-              <input type="number" id="playerCountInput" min="4" max="10" value="4">
+              <input type="number" id="playerCountInput" min="4" max="52" value="4">
               <button id="incrementPlayersBtn" class="btn btn-secondary btn-icon">&#43;</button>
             </div>
           </div>
@@ -78,49 +78,15 @@
           </div>
 
           <button id="dealBtn" class="btn btn-primary btn-block">
-            <span class="btn-icon-text">🔀</span> Shuffle &amp; Deal
+            <span class="btn-icon-text">🔀</span> New Game
           </button>
-        </div>
-
-        <div class="panel-section deck-stats">
-          <h3>Trimming &amp; Dealing Math</h3>
-          <div class="stat-grid">
-            <div class="stat-item">
-              <span class="stat-label">Total Cards</span>
-              <span class="stat-val" id="statTotalCards">52</span>
-            </div>
-            <div class="stat-item highlight">
-              <span class="stat-label">Formula (52 mod n)</span>
-              <span class="stat-val" id="statFormula">52 % 4 = 0</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Excluded (Lowest)</span>
-              <span class="stat-val" id="statExcludedCount">0 cards</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Cards / Player</span>
-              <span class="stat-val" id="statCardsPerPlayer">13 cards</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Excluded Cards Tray -->
-        <div class="panel-section excluded-panel">
-          <div class="excluded-header">
-            <h3>Excluded Lowest Cards</h3>
-            <span class="badge" id="excludedBadge">0 Excluded</span>
-          </div>
-          <p class="section-hint" id="excludedHint">When 52 mod n &gt; 0, the lowest cards are permanently excluded before dealing.</p>
-          <div class="card-strip" id="excludedCardsContainer">
-            <span class="empty-state">No cards excluded (deck splits evenly).</span>
-          </div>
         </div>
 
         <!-- Activity Log -->
         <div class="panel-section log-panel">
           <h3>Game Log</h3>
           <div class="log-stream" id="logStream">
-            <div class="log-item">[System] Ready to start. Set player count &ge; 4 and click Deal.</div>
+            <div class="log-item">[System] Ready to play. Choose the number of players and start a game.</div>
           </div>
         </div>
       </section>
@@ -131,11 +97,17 @@
           <!-- Active Table Center (For upcoming game rules / tricks) -->
           <div class="table-center">
             <div class="center-banner">
-              <h2>Card Table</h2>
-              <p id="tableStatus">Round ready. Cards dealt below.</p>
+            <h2 id="tableHeading">Card Table</h2>
+              <p id="tableStatus">Start a game to deal cards.</p>
             </div>
             <div class="table-card-slot" id="tableCenterCards">
-              <span class="center-placeholder">Cards played in trick/round will appear here once gameplay rules begin.</span>
+              <span class="center-placeholder">The current play will appear here.</span>
+            </div>
+            <div class="turn-actions" id="turnActions">
+              <span id="selectionHint">Select one card or a pair of the same rank.</span>
+              <button id="playBtn" class="btn btn-primary">Play selected</button>
+              <button id="passBtn" class="btn btn-secondary">Pass</button>
+              <button id="nextRoundBtn" class="btn btn-primary" hidden>Next round</button>
             </div>
           </div>
 
@@ -148,6 +120,16 @@
     </main>
   </div>
 
-  <script src="app.js"></script>
+  <div class="round-modal" id="roundModal" hidden>
+    <section class="round-dialog" role="dialog" aria-modal="true" aria-labelledby="roundModalTitle" aria-describedby="roundModalMessage">
+      <span class="round-modal-kicker" id="roundModalKicker">ROUND RESULTS</span>
+      <h2 id="roundModalTitle">Round complete</h2>
+      <p id="roundModalMessage"></p>
+      <div class="exchange-stage" id="exchangeStage" hidden></div>
+      <button class="btn btn-primary" id="roundModalAction">Exchange cards &amp; start next round</button>
+    </section>
+  </div>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
