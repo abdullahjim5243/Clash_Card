@@ -12,12 +12,87 @@ let shownLogCount = 0;
 let announcedRoundNumber = 0;
 let lastObservedRound = 0;
 let lastPlaySignature = '';
+let hasObservedPlayState = false;
 let animatedPlaySignature = '';
+let musicEnabled = true;
 
 const $ = id => document.getElementById(id);
 const playerCountInput = $('playerCountInput');
 const presetButtons = [...document.querySelectorAll('.preset-btn')];
 const playerNameInput = $('playerNameInput');
+const backgroundMusic = $('backgroundMusic');
+const cardPlacedSound = $('cardPlacedSound');
+const turnActions = $('turnActions');
+
+function playCardPlacementSound(cardCount = 1) {
+  for (let index = 0; index < cardCount; index++) {
+    setTimeout(() => {
+      const sound = cardPlacedSound.cloneNode();
+      sound.volume = 1;
+      sound.play().catch(() => {});
+    }, index * 220);
+  }
+}
+
+function startMusic() {
+  if (!musicEnabled || !backgroundMusic.paused) return;
+  if ('audioSession' in navigator) {
+    try { navigator.audioSession.type = 'playback'; } catch { /* Optional browser API. */ }
+  }
+  backgroundMusic.volume = 0.10;
+  backgroundMusic.play().then(() => {
+    $('musicToggle').textContent = '♫ Music: On';
+    $('musicToggle').title = 'Turn background music off';
+  }).catch(() => {
+    $('musicToggle').textContent = backgroundMusic.paused ? '♫ Tap to start' : '♫ Music: On';
+    $('musicToggle').title = backgroundMusic.paused
+      ? 'Music is enabled; click or press a key to start playback'
+      : 'Turn background music off';
+  });
+}
+
+function setMusicEnabled(enabled) {
+  musicEnabled = enabled;
+  const button = $('musicToggle');
+  if (!musicEnabled) {
+    backgroundMusic.pause();
+    button.textContent = '♫ Music: Off';
+    button.setAttribute('aria-pressed', 'false');
+    button.title = 'Turn background music on';
+  } else {
+    button.textContent = '♫ Music: On';
+    button.setAttribute('aria-pressed', 'true');
+    button.title = 'Turn background music off';
+    startMusic();
+  }
+  if (navigator.mediaSession) navigator.mediaSession.playbackState = musicEnabled ? 'playing' : 'paused';
+}
+
+function toggleMusic() {
+  if (musicEnabled && backgroundMusic.paused) {
+    startMusic();
+    return;
+  }
+  setMusicEnabled(!musicEnabled);
+}
+
+function retryMusicFromGesture(event) {
+  if (event.target instanceof Element && event.target.closest('#musicToggle')) return;
+  startMusic();
+}
+
+function configureMediaSession() {
+  if (!navigator.mediaSession) return;
+  if ('MediaMetadata' in window) {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'Clash Card',
+      artist: 'Game soundtrack',
+      album: 'Clash Card'
+    });
+  }
+  try { navigator.mediaSession.setActionHandler('play', () => setMusicEnabled(true)); } catch { /* Not supported by this browser. */ }
+  try { navigator.mediaSession.setActionHandler('pause', () => setMusicEnabled(false)); } catch { /* Not supported by this browser. */ }
+}
 
 function request(path, { method = 'POST', body = {} } = {}) {
   const options = { method, headers: {} };
@@ -70,9 +145,18 @@ function makeCard(card, { selectable = false, selected = false, playable = false
 }
 
 function toggleCard(code) {
-  if (selectedCards.has(code)) selectedCards.delete(code);
-  else if (selectedCards.size < 2) selectedCards.add(code);
-  else selectedCards = new Set([code]);
+  const hand = gameState?.players.find(player => player.id === playerId)?.hand || [];
+  const chosen = hand.find(card => card.code === code);
+  const matchingPair = chosen ? hand.filter(card => card.rank === chosen.rank) : [];
+  if (selectedCards.has(code)) {
+    if (matchingPair.length === 2 && matchingPair.every(card => selectedCards.has(card.code))) {
+      selectedCards = new Set([code]);
+    } else {
+      selectedCards.delete(code);
+    }
+  } else {
+    selectedCards = new Set(matchingPair.length === 2 ? matchingPair.map(card => card.code) : [code]);
+  }
   renderGame();
 }
 
@@ -85,8 +169,12 @@ function applyRoomView(view) {
     const playSignature = view.game.currentPlay
       ? `${view.game.roundNumber}:${view.game.currentPlay.playedById}:${view.game.currentPlay.cards.map(card => card.code).join(',')}`
       : '';
-    if (playSignature && playSignature !== lastPlaySignature) animatedPlaySignature = playSignature;
+    if (playSignature && playSignature !== lastPlaySignature) {
+      animatedPlaySignature = playSignature;
+      if (hasObservedPlayState) playCardPlacementSound(view.game.currentPlay.cards.length);
+    }
     lastPlaySignature = playSignature;
+    hasObservedPlayState = true;
     gameState = view.game;
     if (gameState.activePlayer?.id !== playerId) selectedCards.clear();
     const round = gameState.roundNumber;
@@ -99,11 +187,13 @@ function applyRoomView(view) {
     renderGame();
     $('lobbyPanel').hidden = true;
     $('tableFelt').hidden = false;
-    $('sidePanel').hidden = false;
+    $('sidePanel').hidden = true;
+    $('tableExitBtn').hidden = false;
     $('gameLayout').classList.remove('home-layout');
   } else {
     gameState = null;
     selectedCards.clear();
+    $('tableExitBtn').hidden = true;
     renderLobby(view);
     $('roundModal').hidden = true;
   }
@@ -111,6 +201,7 @@ function applyRoomView(view) {
 
 function renderLobby(view = null) {
   $('lobbyPanel').hidden = false;
+  $('tableExitBtn').hidden = true;
   $('tableFelt').hidden = true;
   $('sidePanel').hidden = Boolean(!view);
   $('gameLayout').classList.toggle('home-layout', !view);
@@ -120,6 +211,7 @@ function renderLobby(view = null) {
   $('roomCodeRow').hidden = !view;
   $('lobbyPlayerList').replaceChildren();
   $('fillBotsBtn').hidden = !view?.isHost || view.phase !== 'lobby' || view.players.length >= view.playerCount;
+  $('startWithBotsBtn').hidden = !view?.isHost || view.phase !== 'lobby' || view.players.length >= view.playerCount;
   $('startGameBtn').hidden = !view?.isHost || view.phase !== 'lobby';
   $('startGameBtn').disabled = !view || view.players.length !== view.playerCount;
 
@@ -181,9 +273,28 @@ function renderGame() {
 
   const players = $('playersContainer');
   players.replaceChildren();
-  state.players.forEach(player => {
+  $('tableFelt').classList.toggle('large-table', state.players.length > 8);
+  const opponents = state.players.filter(player => player.id !== playerId);
+  const perimeterSeats = {
+    3: [{ x: 15, y: 17 }, { x: 85, y: 17 }, { x: 8, y: 49 }],
+    4: [{ x: 15, y: 17 }, { x: 50, y: 10 }, { x: 85, y: 17 }, { x: 8, y: 49 }],
+    5: [{ x: 15, y: 17 }, { x: 50, y: 10 }, { x: 85, y: 17 }, { x: 8, y: 49 }, { x: 92, y: 49 }],
+    6: [{ x: 15, y: 17 }, { x: 50, y: 10 }, { x: 85, y: 17 }, { x: 8, y: 49 }, { x: 92, y: 49 }, { x: 15, y: 64 }],
+    7: [{ x: 15, y: 17 }, { x: 50, y: 10 }, { x: 85, y: 17 }, { x: 8, y: 49 }, { x: 92, y: 49 }, { x: 15, y: 64 }, { x: 85, y: 64 }]
+  }[opponents.length] || [];
+  const seats = [
+    ...opponents.map((player, index) => ({ player, seat: ['north', 'west', 'east'][index] || 'extra', position: perimeterSeats[index] })),
+    { player: ownPlayer, seat: 'own' }
+  ];
+  seats.forEach(({ player, seat, position }, seatIndex) => {
+    if (!player) return;
     const board = document.createElement('section');
-    board.className = `player-board${player.id === active?.id && state.state === 'PLAYING' ? ' player-active' : ''}${player.isFinished ? ' player-finished' : ''}`;
+    board.className = `player-board seat-${seat}${seat !== 'own' && perimeterSeats.length ? ' opponent-seat' : ''}${player.id === active?.id && state.state === 'PLAYING' ? ' player-active' : ''}${player.isFinished ? ' player-finished' : ''}`;
+    if (position) {
+      board.style.setProperty('--seat-x', `${position.x}%`);
+      board.style.setProperty('--seat-y', `${position.y}%`);
+      board.dataset.seatIndex = String(seatIndex);
+    }
     const header = document.createElement('div');
     header.className = 'player-board-header';
     const name = document.createElement('span');
@@ -201,13 +312,33 @@ function renderGame() {
       const playableCodes = new Set(state.playableCardCodes || []);
       (player.hand || []).forEach(card => {
         const playable = humanTurn && playableCodes.has(card.code);
-        hand.append(makeCard(card, { selectable: playable, selected: selectedCards.has(card.code), playable, unplayable: humanTurn && !playable }));
+        const cardEl = makeCard(card, { selectable: playable, selected: selectedCards.has(card.code), playable, unplayable: humanTurn && !playable });
+        const middle = ((player.hand || []).length - 1) / 2;
+        cardEl.style.setProperty('--fan-angle', `${(hand.children.length - middle) * 2.2}deg`);
+        cardEl.style.setProperty('--fan-lift', `${Math.abs(hand.children.length - middle) * 1.5}px`);
+        if (humanTurn && (player.hand || []).filter(item => item.rank === card.rank).length === 2) {
+          cardEl.title = 'Click once to select both matching cards';
+        }
+        hand.append(cardEl);
       });
       board.append(hand);
+      turnActions.classList.add('hand-actions');
+      board.append(turnActions);
     } else {
       const back = document.createElement('div');
       back.className = 'opponent-hand';
-      back.textContent = player.isFinished ? 'Finished' : '🂠 '.repeat(Math.min(player.handCount, 12));
+      back.setAttribute('aria-hidden', 'true');
+      if (!player.isFinished) {
+        for (let index = 0; index < Math.min(player.handCount, 7); index++) {
+          const cardBack = document.createElement('span');
+          cardBack.className = 'card-back';
+          cardBack.style.setProperty('--back-offset', `${(index - 3) * 10}px`);
+          cardBack.style.setProperty('--back-rotation', `${(index - 3) * 5}deg`);
+          back.append(cardBack);
+        }
+      } else {
+        back.textContent = 'Finished';
+      }
       board.append(back);
     }
     players.append(board);
@@ -218,15 +349,17 @@ function renderGame() {
   $('passBtn').disabled = !isMyTurn || !state.currentPlay;
   $('nextRoundBtn').hidden = true;
   const playableCount = (state.playableCardCodes || []).length;
-  $('selectionHint').textContent = selectedCards.size > 0
-    ? `${selectedCards.size} selected`
-    : isMyTurn && state.currentPlay && playableCount === 0
-      ? 'No playable cards. Pass your turn.'
-      : isMyTurn && state.currentPlay
-        ? 'Highlighted cards can beat the play. You may also pass.'
-        : isMyTurn
-          ? 'Highlighted cards are playable. Select one or a same-rank pair.'
-          : active?.isAI ? 'Bot turn in progress.' : 'Wait for your turn. Green cards are playable.';
+  $('selectionHint').textContent = selectedCards.size === 2
+    ? 'Pair selected · click one card again to play it alone'
+    : selectedCards.size === 1
+      ? '1 selected'
+      : isMyTurn && state.currentPlay && playableCount === 0
+        ? 'No playable cards. Pass your turn.'
+        : isMyTurn && state.currentPlay
+          ? 'Highlighted cards can beat the play. You may also pass.'
+          : isMyTurn
+            ? 'Highlighted cards are playable. Select one or a same-rank pair.'
+            : active?.isAI ? 'Bot turn in progress.' : 'Wait for your turn. Green cards are playable.';
   syncLogs();
   if (active?.isAI && state.state === 'PLAYING') scheduleBotTurn(active.id);
 }
@@ -314,7 +447,16 @@ function scheduleBotTurn(expectedPlayerId) {
   if (botTimer) return;
   botTimer = setTimeout(() => {
     botTimer = null;
-    mutateAndApply('/api/ai-step', { expectedPlayerId }).catch(error => addLog(error.message));
+    mutateAndApply('/api/ai-step', { expectedPlayerId }).catch(error => {
+      addLog(error.message);
+      $('tableStatus').textContent = `Bot turn failed: ${error.message}. Retrying…`;
+      if (gameState?.activePlayer?.isAI && gameState.activePlayer.id === expectedPlayerId) {
+        botTimer = setTimeout(() => {
+          botTimer = null;
+          scheduleBotTurn(expectedPlayerId);
+        }, 1400);
+      }
+    });
   }, 600);
 }
 
@@ -347,6 +489,7 @@ function setSession(payload) {
   announcedRoundNumber = 0;
   lastObservedRound = 0;
   lastPlaySignature = '';
+  hasObservedPlayState = false;
   animatedPlaySignature = '';
   selectedCards.clear();
   applyRoomView(payload.view);
@@ -470,12 +613,37 @@ async function exitGame() {
   history.replaceState(null, '', url);
 }
 
+function goHome() {
+  if (roomCode && sessionToken) {
+    exitGame();
+    return;
+  }
+  $('roundModal').hidden = true;
+  renderLobby();
+  showMode('home');
+}
+
 async function fillBots() {
   try {
     const difficulty = document.querySelector('input[name="botDifficulty"]:checked')?.value || 'normal';
     const payload = await request('/api/fill-bots', { body: { roomCode, token: sessionToken, difficulty } });
     applyRoomView(payload.view);
   } catch (error) { $('lobbyStatus').textContent = error.message; }
+}
+
+async function startWithBots() {
+  const button = $('startWithBotsBtn');
+  button.disabled = true;
+  try {
+    const difficulty = document.querySelector('input[name="botDifficulty"]:checked')?.value || 'normal';
+    const payload = await request('/api/fill-bots', { body: { roomCode, token: sessionToken, difficulty } });
+    applyRoomView(payload.view);
+    await startGame();
+  } catch (error) {
+    $('lobbyStatus').textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function showMode(mode = 'home') {
@@ -506,6 +674,7 @@ $('multiplayerJoinBtn').addEventListener('click', () => showMode('join'));
 document.querySelectorAll('.back-mode-btn').forEach(button => button.addEventListener('click', () => showMode('home')));
 $('startGameBtn').addEventListener('click', startGame);
 $('fillBotsBtn').addEventListener('click', fillBots);
+$('startWithBotsBtn').addEventListener('click', startWithBots);
 $('copyInviteBtn').addEventListener('click', async () => {
   const invite = new URL(window.location.href);
   invite.searchParams.set('room', roomCode);
@@ -529,6 +698,24 @@ $('freshGameBtn').addEventListener('click', startFreshGame);
 $('exitGameBtn').addEventListener('click', exitGame);
 $('exitLobbyBtn').addEventListener('click', exitGame);
 $('tableExitBtn').addEventListener('click', exitGame);
+$('brandHomeBtn').addEventListener('click', goHome);
+$('musicToggle').addEventListener('click', toggleMusic);
+document.addEventListener('pointerdown', retryMusicFromGesture, { capture: true });
+document.addEventListener('keydown', retryMusicFromGesture, { capture: true });
+backgroundMusic.addEventListener('play', () => {
+  $('musicToggle').textContent = '♫ Music: On';
+  $('musicToggle').setAttribute('aria-pressed', 'true');
+  if (navigator.mediaSession) navigator.mediaSession.playbackState = 'playing';
+});
+backgroundMusic.addEventListener('pause', () => {
+  if (navigator.mediaSession) navigator.mediaSession.playbackState = 'paused';
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && musicEnabled && backgroundMusic.paused) startMusic();
+});
+window.addEventListener('pageshow', () => {
+  if (musicEnabled && backgroundMusic.paused) startMusic();
+});
 $('incrementPlayersBtn').addEventListener('click', () => {
   playerCountInput.value = Math.min(52, Number(playerCountInput.value || 4) + 1);
   updatePlayerPresets();
@@ -545,6 +732,8 @@ playerCountInput.addEventListener('input', () => updatePlayerPresets());
 
 renderLobby();
 showMode('home');
+configureMediaSession();
+startMusic();
 const inviteCode = new URLSearchParams(window.location.search).get('room');
 if (inviteCode) {
   $('roomCodeInput').value = inviteCode.toUpperCase();

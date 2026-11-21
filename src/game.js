@@ -74,7 +74,7 @@ export class Game {
    * Starts a round (Round 1 or next rounds).
    * Automatically performs card exchange if round > 1 and winner/loser exist.
    */
-  startRound(rng = Math.random) {
+  startRound(rng) {
     this.roundNumber += 1;
     this.finishOrder = [];
     this.currentPlay = null;

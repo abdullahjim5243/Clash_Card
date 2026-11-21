@@ -15,9 +15,10 @@
     <header class="app-header">
       <div class="header-content">
         <div class="logo-group">
-          <span class="game-badge">MULTIPLAYER</span>
-          <h1>Clash Card</h1>
+          <button class="brand-home" id="brandHomeBtn" type="button" aria-label="Clash Card home">Clash Card</button>
         </div>
+        <button class="music-toggle" id="musicToggle" type="button" aria-pressed="true" title="Turn background music off">♫ Music: On</button>
+        <button class="btn btn-secondary header-exit-btn" id="tableExitBtn" type="button" hidden>Exit match</button>
         <p class="subtitle">Power Sequence: <strong>2 &gt; A &gt; K &gt; Q &gt; J &gt; 10 &gt; 9 &gt; 8 &gt; 7 &gt; 6 &gt; 5 &gt; 4 &gt; 3</strong></p>
       </div>
     </header>
@@ -72,6 +73,11 @@
         <section class="lobby-panel" id="lobbyPanel">
           <div class="home-screen" id="homeScreen">
             <span class="game-badge">CLASH CARD</span>
+            <div class="home-card-fan" aria-hidden="true">
+              <span class="home-playing-card card-red"><b>A</b><i>♥</i></span>
+              <span class="home-playing-card"><b>2</b><i>♠</i></span>
+              <span class="home-playing-card card-red"><b>K</b><i>♦</i></span>
+            </div>
             <h2>Who would you like to play?</h2>
             <p>Choose a quick bot game, create a multiplayer room, or join your friends.</p>
 
@@ -155,6 +161,7 @@
             </div>
             <div class="lobby-player-list" id="lobbyPlayerList"></div>
             <button id="fillBotsBtn" class="btn btn-secondary" hidden>Fill empty seats with bots</button>
+            <button id="startWithBotsBtn" class="btn btn-primary" type="button" hidden>Start with bots</button>
             <button id="startGameBtn" class="btn btn-primary" disabled hidden>Start game</button>
             <button id="exitLobbyBtn" class="btn btn-secondary">Exit room</button>
           </div>
@@ -175,7 +182,6 @@
               <button id="playBtn" class="btn btn-primary">Play selected</button>
               <button id="passBtn" class="btn btn-secondary">Pass</button>
               <button id="nextRoundBtn" class="btn btn-primary" hidden>Next round</button>
-              <button id="tableExitBtn" class="btn btn-secondary exit-game-btn" type="button">Exit to home</button>
             </div>
           </div>
 
@@ -187,6 +193,9 @@
       </section>
     </main>
   </div>
+
+  <audio id="backgroundMusic" src="businessstar-poker-player-392184.mp3" loop autoplay preload="auto"></audio>
+  <audio id="cardPlacedSound" src="yourfriendryan-dealing-one-card-578992.mp3" preload="auto"></audio>
 
   <div class="round-modal" id="roundModal" hidden>
     <section class="round-dialog" role="dialog" aria-modal="true" aria-labelledby="roundModalTitle" aria-describedby="roundModalMessage">

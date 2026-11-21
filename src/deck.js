@@ -1,5 +1,6 @@
 import { POWER_SEQUENCE, SUIT_SYMBOLS, MIN_PLAYERS, STANDARD_DECK_SIZE } from './constants.js';
 import { Card } from './card.js';
+import { randomInt } from 'node:crypto';
 
 export class Deck {
   constructor(cards = null) {
@@ -43,12 +44,13 @@ export class Deck {
   }
 
   /**
-   * Shuffles this deck in-place using the Fisher-Yates algorithm.
-   * @param {Function} [rng=Math.random]
+   * Shuffles this deck in-place using Fisher-Yates and unbiased cryptographic
+   * randomness unless a custom RNG is supplied (useful for reproducible deals).
+   * @param {Function} [rng]
    */
-  shuffle(rng = Math.random) {
+  shuffle(rng = null) {
     for (let i = this.cards.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
+      const j = rng ? Math.floor(rng() * (i + 1)) : randomInt(i + 1);
       [this.cards[i], this.cards[j]] = [this.cards[j], this.cards[i]];
     }
     return this;
