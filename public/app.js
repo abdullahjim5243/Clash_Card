@@ -292,7 +292,7 @@ function showExchangeAnimation(state) {
   $('roundModalAction').disabled = true;
   $('skipNextBtn').hidden = true;
   $('freshGameBtn').hidden = true;
-  $('exitGameBtn').hidden = true;
+  $('exitGameBtn').hidden = false;
   $('roundModal').hidden = false;
   setTimeout(() => {
     $('roundModalTitle').textContent = 'Card exchange complete';
@@ -462,6 +462,7 @@ async function exitGame() {
   $('lobbyPlayerList').replaceChildren();
   $('roomCodeRow').hidden = true;
   renderLobby();
+  showMode('home');
   $('lobbyTitle').textContent = 'Game closed';
   $('lobbyStatus').textContent = 'You exited the room. Create a new room or join another one.';
   const url = new URL(window.location.href);
@@ -527,6 +528,7 @@ $('skipNextBtn').addEventListener('click', skipNextGame);
 $('freshGameBtn').addEventListener('click', startFreshGame);
 $('exitGameBtn').addEventListener('click', exitGame);
 $('exitLobbyBtn').addEventListener('click', exitGame);
+$('tableExitBtn').addEventListener('click', exitGame);
 $('incrementPlayersBtn').addEventListener('click', () => {
   playerCountInput.value = Math.min(52, Number(playerCountInput.value || 4) + 1);
   updatePlayerPresets();
